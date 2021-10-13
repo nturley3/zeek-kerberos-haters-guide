@@ -12,12 +12,100 @@ Kerberos is often misunderstood and can be complicated to implement and maintain
 *If a query is using a Humio aggregation function, that will be explained so an equivalent aggregation can be done on these other platforms.*
 
 # Kerberos Overview
+TODO: Overview diagram
+
 
 ## Authentication Service (AS)
-TBD
+This service performs the initial authentication and issues Ticket-Granting-Tickets (TGT) for users. The `AS-REQ` and `AS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `AS` in the `kerberos.log` log file. 
 
 ## Ticket Granting Service (TGS)
-TBD
+This service issues service tickets that are based on the initial Ticket-Granting-Ticket (TGT). When service tickets are being requested, the user has already successfully authenticated to the KDC. The `TGS-REQ` and `TGS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `TGS` in the `kerberos.log` log file. 
+
+# Where do I start?
+NOTE: As a reminder, the query examples used in this guide use Humio query syntax. However, the queries are simple and should be easy to convery to your logging tool of choice. 
+
+## The Logs
+
+The two request types that you will want to focus on are the `AS` and `TGS` Kerberos requests. 
+
+```
+#path=kerberos request_type=AS
+#path=kerberos request_type=TGS
+```
+
+There are a few key fields in the `kerberos.log` you will want to pay special attention to:
+
+* `error_msg` : The Kerberos error message detected in the protocol (if `success=false`). Reference Kerberos Event Types in this document for a list of those error messages. 
+* `cipher` : The encryption cipher used to encrypt the kerberos ticket payloads. Weak ciphers can be easy targets for several Kerberos attacks
+* `client` : Also known as *User Principal Name* or the *username* of the requestor. This could either be the account in your Active Directory or some other backend store, such as LDAP. 
+* `service` : This is the *Service Principal Name (SPN)*. SPNs are identifiers used for accessing services using the service tickets provided by the TGS. SPNs have a particular syntax and are excellent sources of threat hunting information for determining what Kerberos-enabled services are being used on your network and how. 
+
+## Example Use Cases & Scenarios
+| AS Events | TGS Events | 
+| ---- | ---- |
+| Detected Kerberos Realms<br />Detected KDCs<br />Bad Passwords / Expired Passwords<br />Unknown Accounts<br />Locked Out / Revoked Accounts<br />Hosts with large amount of UPN success events<br />Hosts with large amounts of UPN failure events<br />Account Enumerations<br />Bruteforcing<br />* High value account mapping | Inventory all Service<br />Classes and Hosts<br />Detect legacy and outdated clients<br />Identify Operating Systems<br />Excessive successful TGS requests for large amount of SPNs<br />Excessive failed TGS requests for large amount of SPNs<br />Kerberoasting / TGS SPN Enumeration<br />Weak ciphers: rc4-hmac & rc4-hmac-emp<br />Unusual ticket expirations<br />* High value account mapping | 
+
+# Key Events
+## KDC_ERR_PREAUTH_FAILED
+TODO
+
+## KDC_ERR_C_PRINCIPAL_UNKNOWN
+TODO
+
+## KDC_ERR_CLIENT_REVOKED
+TODO
+
+## KDC_ERR_KEY_EXPIRED
+TODO
+
+## Weak Ciphers
+TODO
+
+# Noise Makers
+## Common Events
+These are common events in large environments that generally have little security relevance. 
+
+| Error | Description
+| ---- | ---- |
+| KRB_ERR_PREAUTH_REQUIRED | Ignore<br />Sometimes can cause issues with legacy platforms<br />Normal part of protocol |
+| KRB_AP_ERR_TKT_EXPIRED | Ignore<br />Ticket renewal is automatic and purely informational |
+| KRB_ERR_RESPONSE_TOO_BIG | Ignore<br />Protocol change from UDP to TCP (normal)<br />Common in Windows Environments |
+| KDC_ERR_BADOPTION | KDC cannot accomodate requested options<br />Unless you are troubleshooting a delegation problem, ignore this error |
+| KRC_ERR_NEVER_VALID or KRB_AP_ERR_SKEW | Kerberos is time sensitive<br />Helpful for troubleshooting<br />You may have time sync problems in your environment
+| KDC_ERR_ETYPE_NOSUPP | Encryption type requested is not supported<br />Useful for hunting down old devices requesting DES<br />AES requests but domain function level is not 2008+<br />Linux/Unix systems where single algorithm is configured in `krb5.conf`<br />Helpful for troubleshooting
+
+## Y2K38 and Weird Timestamps
+If you're not familiar with the Y2K38 problem, refer to this [Wikipedia article](https://en.wikipedia.org/wiki/Year_2038_problem)
+
+On Windows platforms, there is a bug in the `kerberos.dll` in which Windows clients will request TGS tickets for the maxiumum allowable lifetime until the KDC responds with a valid `till`. In your logs (and especially in large enviornments), you will see a bizarre timestamp `2037-09-13T02:48:05.000000Z`.
+
+Here is an example kerberos.log event:
+
+```
+{
+  "_path": "kerberos",
+  "_system_name": “zeek02",
+  "_write_ts": "2021-10-12T01:29:17.119252Z",
+  "cipher": "aes256-cts-hmac-sha1-96",
+  "client": “joey/domain.local",
+  "forwardable": true,
+  "id.orig_h": "10.25.49.89",
+  "id.orig_p": 64514,
+  "id.resp_h": "10.11.16.38",
+  "id.resp_p": 88,
+  "renewable": true,
+  "request_type": "TGS",
+  "service": "LDAP/AD3.domain.local/domain.local",
+  "success": true,
+  "till": "2037-09-13T02:48:05.000000Z",
+  "ts": "2021-10-12T01:29:17.119252Z",
+  "uid": "Cqsvog4izYWRZlrZch"
+}
+```
+
+The exact timestamp of `2037-09-13T02:48:05.000000Z` will never change so its easy to identify and filter in logs. In general, `till` with the exact above timestamp are safe to ignore and are not indicative of something nefarious. I have often ignored this timestamp in my logs. Be careful however to not ignore other `till` timestamps with long lifetimes as they can be indicators of an attack (e.g. a ticket lifetime that is beyond your domains configuration standards, e.g. golden ticket attack). 
+
+A great discussion on this topic can be found at [https://github.com/zeek/zeek/issues/1112](https://github.com/zeek/zeek/issues/1112)
 
 # Kerberos Event Types
 References: 
