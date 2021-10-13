@@ -1,6 +1,28 @@
 # Zeek Kerberos Haters Guide
 **NOTE: This guide and repository is being actively updated and will reflect information presented at ZeekWeek 2021. Information is missing but will be added soon. Stay tuned.**
 
+
+- [Zeek Kerberos Haters Guide](#zeek-kerberos-haters-guide)
+- [Introduction](#introduction)
+- [Kerberos Overview](#kerberos-overview)
+  - [Authentication Service (AS)](#authentication-service-as)
+  - [Ticket Granting Service (TGS)](#ticket-granting-service-tgs)
+- [Where do I start?](#where-do-i-start)
+  - [The Logs](#the-logs)
+  - [Example Use Cases & Scenarios](#example-use-cases--scenarios)
+- [Key Events](#key-events)
+  - [KDC_ERR_PREAUTH_FAILED](#kdc_err_preauth_failed)
+  - [KDC_ERR_C_PRINCIPAL_UNKNOWN](#kdc_err_c_principal_unknown)
+  - [KDC_ERR_CLIENT_REVOKED](#kdc_err_client_revoked)
+  - [KDC_ERR_KEY_EXPIRED](#kdc_err_key_expired)
+  - [Weak Ciphers](#weak-ciphers)
+- [Noise Makers](#noise-makers)
+  - [Common Events](#common-events)
+  - [Y2K38 and Weird Timestamps](#y2k38-and-weird-timestamps)
+- [Kerberos Event Types](#kerberos-event-types)
+- [Kerberos Attacks](#kerberos-attacks)
+
+# Introduction
 Kerberos is an authentication protocol used extensively in many enterprise environments. It is used to verify the identity of a user to a host. Kerberos V5 is the primary authentication protocol for modern Active Directory deployments and can also be used within Unix and Linux infrastructure. 
 
 Zeek contains a Kerberos V5 protocol analyzer that exposes how the protocol is being used on networks and is an extremely valuable resource for monitoring and threat hunting within these environments. However, experience has shown that the Kerberos log and analyzer are often underutilized resources for detecting threats. 
@@ -10,6 +32,7 @@ Kerberos is often misunderstood and can be complicated to implement and maintain
 *NOTE: The queries and examples shown in this guide are using Zeek 4.0+ versions and/or Corelight. The query examples are using Humio (and therefore, Humio query language). However, the Humio query language is straight-forward and can be easily translated to Elastic, Splunk or your log collection system of choice. None of the Zeek fields have been modified from stock.*
 
 *If a query is using a Humio aggregation function, that will be explained so an equivalent aggregation can be done on these other platforms.*
+
 
 # Kerberos Overview
 TODO: Overview diagram
