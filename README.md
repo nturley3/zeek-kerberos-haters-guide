@@ -7,15 +7,15 @@
 - [Kerberos Overview](#kerberos-overview)
   - [Authentication Service (AS)](#authentication-service-as)
   - [Ticket Granting Service (TGS)](#ticket-granting-service-tgs)
-- [Where do I start?](#where-do-i-start)
+- [Where To Start](#where-to-start)
   - [The Logs](#the-logs)
   - [Example Use Cases & Scenarios](#example-use-cases--scenarios)
-- [Critical Kerberos Events](#critical-kerberos-events)
-  - [KDC_ERR_PREAUTH_FAILED](#kdc_err_preauth_failed)
-  - [KDC_ERR_C_PRINCIPAL_UNKNOWN](#kdc_err_c_principal_unknown)
-  - [KDC_ERR_CLIENT_REVOKED](#kdc_err_client_revoked)
-  - [KDC_ERR_KEY_EXPIRED](#kdc_err_key_expired)
-  - [Weak Ciphers](#weak-ciphers)
+  - [Critical Kerberos Events](#critical-kerberos-events)
+    - [KDC_ERR_PREAUTH_FAILED](#kdc_err_preauth_failed)
+    - [KDC_ERR_C_PRINCIPAL_UNKNOWN](#kdc_err_c_principal_unknown)
+    - [KDC_ERR_CLIENT_REVOKED](#kdc_err_client_revoked)
+    - [KDC_ERR_KEY_EXPIRED](#kdc_err_key_expired)
+    - [Weak Ciphers](#weak-ciphers)
 - [Noise Makers](#noise-makers)
   - [Common Events](#common-events)
   - [Y2K38 and Weird Timestamps](#y2k38-and-weird-timestamps)
@@ -44,7 +44,7 @@ This service performs the initial authentication and issues Ticket-Granting-Tick
 ## Ticket Granting Service (TGS)
 This service issues service tickets that are based on the initial Ticket-Granting-Ticket (TGT). When service tickets are being requested, the user has already successfully authenticated to the KDC. The `TGS-REQ` and `TGS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `TGS` in the `kerberos.log` log file. 
 
-# Where do I start?
+# Where To Start
 NOTE: As a reminder, the query examples used in this guide use Humio query syntax. However, the queries are simple and should be easy to convery to your logging tool of choice. 
 
 ## The Logs
@@ -59,17 +59,17 @@ The two request types that you will want to focus on are the `AS` and `TGS` Kerb
 There are a few key fields in the `kerberos.log` you will want to pay special attention to:
 
 * `error_msg` : The Kerberos error message detected in the protocol (if `success=false`). Reference Kerberos Event Types in this document for a list of those error messages. 
-* `cipher` : The encryption cipher used to encrypt the kerberos ticket payloads. Weak ciphers can be easy targets for several Kerberos attacks
-* `client` : Also known as *User Principal Name* or the *username* of the requestor. This could either be the account in your Active Directory or some other backend store, such as LDAP. 
-* `service` : This is the *Service Principal Name (SPN)*. SPNs are identifiers used for accessing services using the service tickets provided by the TGS. SPNs have a particular syntax and are excellent sources of threat hunting information for determining what Kerberos-enabled services are being used on your network and how. 
+* `cipher` : The encryption cipher used to encrypt the kerberos ticket payloads. Weak ciphers can be easy targets for several Kerberos attacks. Recorded when `success=true` for TGS events. 
+* `client` : Also known as *User Principal Name* or the *username* of the requestor. This could either be the account in your Active Directory or some other backend store, such as LDAP. Recorded in both AS and TGS events. 
+* `service` : This is the *Service Principal Name (SPN)*. SPNs are identifiers used for accessing services using the service tickets provided by the TGS. SPNs have a particular syntax and are excellent sources of threat hunting information for determining what Kerberos-enabled services are being used on your network and how. Recorded in TGS events. 
 
 ## Example Use Cases & Scenarios
 | AS Events | TGS Events | 
 | ---- | ---- |
 | Detected Kerberos Realms<br />Detected KDCs<br />Bad Passwords / Expired Passwords<br />Unknown Accounts<br />Locked Out / Revoked Accounts<br />Hosts with large amount of UPN success events<br />Hosts with large amounts of UPN failure events<br />Account Enumerations<br />Bruteforcing<br />* High value account mapping | Inventory all Service<br />Classes and Hosts<br />Detect legacy and outdated clients<br />Identify Operating Systems<br />Excessive successful TGS requests for large amount of SPNs<br />Excessive failed TGS requests for large amount of SPNs<br />Kerberoasting / TGS SPN Enumeration<br />Weak ciphers: rc4-hmac & rc4-hmac-emp<br />Unusual ticket expirations<br />* High value account mapping | 
 
-# Critical Kerberos Events
-## KDC_ERR_PREAUTH_FAILED
+## Critical Kerberos Events
+### KDC_ERR_PREAUTH_FAILED
 Related Events: `PREAUTH_FAILED`
 
 Windows Event IDs: `4771`
@@ -84,7 +84,7 @@ Monitor for excessive failures and watch Zeek `client` and `service` fields
 * Single client attempts
 * Account enumerations (e.g. pattern of KDC_ERR_C_PRINCIPAL_UNKNOWN and KDC_ERR_PREAUTH_FAILED together)
 
-## KDC_ERR_C_PRINCIPAL_UNKNOWN
+### KDC_ERR_C_PRINCIPAL_UNKNOWN
 Related Events: `CLIENT_NOT_FOUND`
 
 Windows Event IDs: `4768`
@@ -100,7 +100,7 @@ Monitor for excessive unknown events
 * Correlate attacks with KDC_ERR_PREAUTH_FAILED
 
 
-## KDC_ERR_CLIENT_REVOKED
+### KDC_ERR_CLIENT_REVOKED
 Related Events: `LOCKED OUT`, `CLIENT_REVOKED`
 Windows Event IDs: `4768`, `4769`, `4771`
 
@@ -116,7 +116,7 @@ Monitor for excessive or sudden revocations:
 * Runaway scripts and jobs
 * Logins taking place outside of logon hours. This error is returned by the KDC in AD environments when `LogonHours` is configured. 
 
-## KDC_ERR_KEY_EXPIRED
+### KDC_ERR_KEY_EXPIRED
 Related Events: N/A
 
 Windows Event IDs: `4768`, `4769`
@@ -130,7 +130,7 @@ Monitor for attempts to use expired credentials
 * Expirations with subsequent, unexpected successes
 * Vendor accounts or individuals who have left the organization
 
-## Weak Ciphers
+### Weak Ciphers
 Windows Event IDs: `4769`, `4770`
 
 Various Kerberos attacks take advantage of weaknesses with tickets encrypted with weak ciphers. In particular, the "Kerberoasting" attack involves using a compromised account in the organization to extract service account credentials in the environment without sending any packets to the target service. Service account credentials can be cracked offline by requesting a Kerberos Ticket Granting Service (TGS) ticket for the SPNs registered in the environment. If these tickets are encrypted with weak ciphers and the service account password is weak, offline cracking is possible. 
@@ -178,7 +178,9 @@ Additional notes about some of the above errors can be found at [https://docs.mi
 ## Y2K38 and Weird Timestamps
 If you're not familiar with the Y2K38 problem, refer to this [Wikipedia article](https://en.wikipedia.org/wiki/Year_2038_problem)
 
-On Windows platforms, there is a bug in the `kerberos.dll` in which Windows clients will request TGS tickets for the maxiumum allowable lifetime until the KDC responds with a valid `till`. In your logs (and especially in large enviornments), you will see a bizarre timestamp `2037-09-13T02:48:05.000000Z`.
+On some platforms, there is a bug in the Kerberos library implementation in which clients will request TGS tickets for the maxiumum allowable lifetime until the KDC responds with a valid `till`. In your logs (and especially in large enviornments), you will see a bizarre timestamp `2037-09-13T02:48:05.000000Z`. 
+
+This timestamp is often set by clients for TGS requests with a date set far into the future until the KDC completes a TGS-REP with a real expiration time. This date is close to the Y2K38 time limit, which is the limit for 32-bit signed integers still used by operating systems and library implementations for time structures today. The KRB5 implementation in many modern products is still using a 32-bit date structure for Kerberos tickets. 
 
 Here is an example kerberos.log event:
 
@@ -204,9 +206,11 @@ Here is an example kerberos.log event:
 }
 ```
 
-The exact timestamp of `2037-09-13T02:48:05.000000Z` will never change so its easy to identify and filter in logs. In general, `till` with the exact above timestamp are safe to ignore and are not indicative of something nefarious. I have often ignored this timestamp in my logs. Be careful however to not ignore other `till` timestamps with long lifetimes as they can be indicators of an attack (e.g. a ticket lifetime that is beyond your domains configuration standards, e.g. golden ticket attack). 
+The exact timestamp of `2037-09-13T02:48:05.000000Z` (or close to it) is easy to identify and filter in logs. In general, `till` with the exact above timestamp are safe to ignore and are not indicative of something nefarious. I have often ignored this timestamp in my logs. Be careful however to not ignore other `till` timestamps with long lifetimes as they can be indicators of an attack (e.g. a ticket lifetime that is beyond your domains configuration standards, such as 10 years). 
 
 A great discussion on this topic can be found at [https://github.com/zeek/zeek/issues/1112](https://github.com/zeek/zeek/issues/1112)
+
+Additional discussion on this topic can be found in a session presented at DebConf'17 at [https://lwn.net/Articles/732794/](https://lwn.net/Articles/732794/)
 
 # Kerberos Event Types
 References: 
