@@ -7,6 +7,8 @@
 - [Kerberos Overview](#kerberos-overview)
   - [Authentication Service (AS)](#authentication-service-as)
   - [Ticket Granting Service (TGS)](#ticket-granting-service-tgs)
+  - [Service Principal Name (SPN)](#service-principal-name-spn)
+    - [SPN Format](#spn-format)
 - [Where To Start](#where-to-start)
   - [The Logs](#the-logs)
   - [Example Use Cases & Scenarios](#example-use-cases--scenarios)
@@ -45,6 +47,27 @@ This service performs the initial authentication and issues Ticket-Granting-Tick
 
 ## Ticket Granting Service (TGS)
 This service issues service tickets that are based on the initial Ticket-Granting-Ticket (TGT). When service tickets are being requested, the user has already successfully authenticated to the KDC. The `TGS-REQ` and `TGS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `TGS` in the `kerberos.log` log file. 
+
+## Service Principal Name (SPN)
+A Service Principal Name (SPN) is used extensively in Kerberos environments to allow clients to uniquely identify instances of services for a given target computer or application service. An SPN always includes the hostname of the target computer on which the service is being offered as well as a Service Class. 
+
+SPNs in Zeek are recorded in the `service` field of the `kerberos.log` and are a great source of information for monitoring and hunting down all Kerberos-enabled services in your environment, who is using these services and how. In Windows and Active Directory environments, Kerberos-enabled services are plentiful and Kerberos is the default authentication protocol in AD environments. 
+
+### SPN Format
+Format is: `serviceclass/host:port servicename`
+
+In the SPN, the `serviceclass` and `host` fields are mandatory. 
+
+| Field | Description |
+| ----- | ----- |
+| serviceclass | String that identifies the general class of a service. General services camples include `CIFS`, `HTTP`, `LDAP`, `MSSQLSvc`, `TERMSRV` etc. |
+| host | The hostname of the target computer running the Kerberos-enabled service. You will either see these as fully-qualified domain names or NetBIOS names (which are not always unique in a domain). |
+| port | This field is optional. Shows the TCP or UDP port of the service. You will often see a port provided if multiple instances of the service are running. In general, you will not see the port since services are running on a default port. |
+| servicename | This field is optional. IN large environments, it's often the name of the domain (e.g. mydomain.school.edu). It other cases, it might be the DNS name of an SRV or MX record. 
+
+A comprehensive lists of known Active Directory SPNs can be found at [https://adsecurity.org/?page_id=183](https://adsecurity.org/?page_id=183) and will not be documented here. 
+
+More information on SPNs (including registering and editing) can be found at [https://social.technet.microsoft.com/wiki/contents/articles/717.service-principal-names-spn-setspn-syntax.aspx](https://social.technet.microsoft.com/wiki/contents/articles/717.service-principal-names-spn-setspn-syntax.aspx)
 
 # Where To Start
 NOTE: As a reminder, the query examples used in this guide use Humio query syntax. However, the queries are simple and should be easy to convery to your logging tool of choice. 
