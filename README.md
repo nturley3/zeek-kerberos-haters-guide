@@ -7,6 +7,7 @@
 - [Kerberos Overview](#kerberos-overview)
   - [Authentication Service (AS)](#authentication-service-as)
   - [Ticket Granting Service (TGS)](#ticket-granting-service-tgs)
+  - [Authentication Header (AP)](#authentication-header-ap)
   - [Service Principal Name (SPN)](#service-principal-name-spn)
     - [SPN Format](#spn-format)
 - [Where To Start](#where-to-start)
@@ -46,6 +47,9 @@ This service performs the initial authentication and issues Ticket-Granting-Tick
 
 ## Ticket Granting Service (TGS)
 This service issues service tickets that are based on the initial Ticket-Granting-Ticket (TGT). When service tickets are being requested, the user has already successfully authenticated to the KDC. The `TGS-REQ` and `TGS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `TGS` in the `kerberos.log` log file. 
+
+## Authentication Header (AP)
+These messages contain authentication information that should be part of the first message in the authentication transaction to a application server or other Kerberos-enabled service. In Zeek, you will not see these events recorded by default since all of the interesting information in these tickets is encrypted. Events are available in Zeek to use, but additional scripting would be required to expose AP event data.  
 
 ## Service Principal Name (SPN)
 A Service Principal Name (SPN) is used extensively in Kerberos environments to allow clients to uniquely identify instances of services for a given target computer or application service. An SPN always includes the hostname of the target computer on which the service is being offered as well as a Service Class. 
