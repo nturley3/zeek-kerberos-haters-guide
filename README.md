@@ -20,7 +20,9 @@
   - [Common Events](#common-events)
   - [Y2K38 and Weird Timestamps](#y2k38-and-weird-timestamps)
 - [Kerberos Event Types](#kerberos-event-types)
-- [Kerberos Attacks](#kerberos-attacks)
+- [Kerberos Attacks and Examples](#kerberos-attacks-and-examples)
+  - [Kerberoasting](#kerberoasting)
+  - [Account Harvesting/Enumerations](#account-harvestingenumerations)
 
 # Introduction
 Kerberos is an authentication protocol used extensively in many enterprise environments. It is used to verify the identity of a user to a host. Kerberos V5 is the primary authentication protocol for modern Active Directory deployments and can also be used within Unix and Linux infrastructure. 
@@ -289,10 +291,53 @@ References:
 | 0x80000002 | KDC_ERR_NOT_RUNNING | The Kerberos service is not running | Windows-specific response<br /><br />Not enumerated by Zeek |
 
 
+# Kerberos Attacks and Examples
+## Kerberoasting
 
-# Kerberos Attacks
+Kerberoasting attack has been detected using valid domain credentials. Adversaries possessing a valid Kerberos ticket-granting ticket (TGT) may request one or more Kerberos ticket-granting service (TGS) service tickets for any SPN from a domain controller (DC). Portions of these tickets may be encrypted with a weak RC4 algorithm, meaning the hash of the service account associated with the SPN is used as the private key and is thus vulnerable to offline Brute Force attacks that may expose plaintext credentials. Some text sourced from [T1208 - https://attack.mitre.org/techniques/T1208/](https://attack.mitre.org/techniques/T1558/003/)
 
+```
+#path=kerberos success=true request_type=TGS !service=/\$/ !client=/\$/ !service=/^krbtgt/
+|cipher =~ in(values=["rc4-hmac", "rc4-hmac-emp"])
+|splitString(service, by="\/", index=0, as=spn_class)
+|groupby(field=[id.orig_h], function=session(maxpause=15m, function=
+	[count(service, distinct=true, as=unique_spns),
+	count(spn_class, distinct=true, as=spn_classes),
+    collect([spn_class], multival=true),
+	collect([client]),
+	max(@timestamp, as=lts), min(@timestamp, as=fts)]))
+|duration := formatTime("%H:%M:%S", field=_duration, locale=en_US, timezone=Z)
+|duration_s := formatTime("%s", field=_duration, locale=en_US, timezone=Z)
+|first := formatTime("%Y-%m-%d %H:%M:%S", field=fts, locale=en_US, timezone=Z)
+|last := formatTime("%Y-%m-%d %H:%M:%S", field=lts, locale=en_US, timezone=Z)
+|duration_s <= 300
+|unique_spns >= 30
+|spn_classes >= 10
+|rdns(id.orig_h, as="hostname")
+|table([first, last, id.orig_h, hostname, duration, client, unique_spns, spn_classes, spn_class], sortby=unique_spns)
+```
 
+A great resource for a deeper dive into Kerberoasting activity can be found at [https://adsecurity.org/?p=3458](https://adsecurity.org/?p=3458)
 
+## Account Harvesting/Enumerations
+Detects when a Kerberos/AD domain user enumeration attack has occurred in a short period of time (more than 100 unique UPN attempts bucketed by 15 minute sessions). These requests are invalid and contain a large number of unknown client principals and client revoked events. Note the detect duration with associated first and last seen timestamps.
 
+```
+#path=kerberos request_type success=false !client=/\$/ !error_msg="KDC_ERR_PREAUTH_REQUIRED"
+|groupby(field=id.orig_h, function=session(maxpause=15m, function=
+	[count(client, distinct=true, as=unique_upns),
+	count(error_msg, distinct=true, as=unique_errors),
+	collect([error_msg], multival=true), 
+	max(@timestamp, as=lts), min(@timestamp, as=fts)]))
+|duration := formatTime("%H:%M:%S", field=_duration, locale=en_US, timezone=Z)
+|duration_s := formatTime("%s", field=_duration, locale=en_US, timezone=Z)
+|first := formatTime("%Y-%m-%d %H:%M:%S", field=fts, locale=en_US, timezone=Z)
+|last := formatTime("%Y-%m-%d %H:%M:%S", field=lts, locale=en_US, timezone=Z)
+|unique_upns >= 100
+|duration_s <= 300
+|replace("\s+", with=", ", field=error_msg, as=errors)
+|rdns(id.orig_h, as="hostname")
+|table([first, last, id.orig_h, hostname, duration, client, unique_upns, unique_errors, errors], sortby=unique_upns)
+```
 
+More to come
