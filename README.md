@@ -39,8 +39,7 @@ Kerberos is often misunderstood and can be complicated to implement and maintain
 
 
 # Kerberos Overview
-TODO: Overview diagram
-
+![Kerberos Overview](Overview_Kerberos.png)
 
 ## Authentication Service (AS)
 This service performs the initial authentication and issues Ticket-Granting-Tickets (TGT) for users. The `AS-REQ` and `AS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `AS` in the `kerberos.log` log file. 
@@ -91,7 +90,7 @@ There are a few key fields in the `kerberos.log` you will want to pay special at
 ## Example Use Cases & Scenarios
 | AS Events | TGS Events | 
 | ---- | ---- |
-| Detected Kerberos Realms<br />Detected KDCs<br />Bad Passwords / Expired Passwords<br />Unknown Accounts<br />Locked Out / Revoked Accounts<br />Hosts with large amount of UPN success events<br />Hosts with large amounts of UPN failure events<br />Account Enumerations<br />Bruteforcing<br />* High value account mapping | Inventory all Service<br />Classes and Hosts<br />Detect legacy and outdated clients<br />Identify Operating Systems<br />Excessive successful TGS requests for large amount of SPNs<br />Excessive failed TGS requests for large amount of SPNs<br />Kerberoasting / TGS SPN Enumeration<br />Weak ciphers: rc4-hmac & rc4-hmac-emp<br />Unusual ticket expirations<br />* High value account mapping | 
+| Detected Kerberos Realms<br />Detected KDCs in the environment<br />Bad Passwords / Expired Passwords<br />Unknown Accounts<br />Locked Out / Revoked Accounts<br />Hosts with large amount of UPN success events<br />Hosts with large amounts of UPN failure events<br />Account Enumerations<br />Bruteforcing<br />* High Value Target (HVT) account mapping | Inventory all Service<br />Classes and Hosts<br />Detect legacy and outdated clients<br />Identify Operating Systems<br />Excessive successful TGS requests for large amount of SPNs<br />Excessive failed TGS requests for large amount of SPNs<br />Kerberoasting / TGS SPN Enumeration<br />Weak ciphers: rc4-hmac & rc4-hmac-emp<br />Unusual ticket expirations<br />* High Value Target (HVT) account mapping | 
 
 ## Critical Kerberos Events
 ### KDC_ERR_PREAUTH_FAILED
@@ -225,7 +224,7 @@ Here is an example kerberos.log event:
   "request_type": "TGS",
   "service": "LDAP/AD3.domain.local/domain.local",
   "success": true,
-  "till": "2037-09-13T02:48:05.000000Z",
+  "till": "2037-09-13T02:48:05.000000Z", <--------- Weird timestamp??
   "ts": "2021-10-12T01:29:17.119252Z",
   "uid": "Cqsvog4izYWRZlrZch"
 }
@@ -238,7 +237,12 @@ A great discussion on this topic can be found at [https://github.com/zeek/zeek/i
 Additional discussion on this topic can be found in a session presented at DebConf'17 at [https://lwn.net/Articles/732794/](https://lwn.net/Articles/732794/)
 
 # Kerberos Event Types
-References: 
+This table is provided for reference and similar tables can be found in the links below. This table was included to allow commenting in how these events relate to Zeek monitoring. Briefly, the following fields are:
+
+* Code: This code is often used for determining specific error events in Windows event logs. This code is not exposed in Zeek logs. 
+* Name: The Kerberos error event string. This string is recorded in Zeek `kerberos.log` in the `error_msg` field. 
+* Description: A brief description of the error (sources from Microsoft article)
+* Notes: Notes on the error and additional information as it relates to Zeek or log queries. 
 
 [4768(S, F): A Kerberos authentication ticket (TGT) was requested.](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4768)
 
