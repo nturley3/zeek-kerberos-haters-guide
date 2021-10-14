@@ -10,7 +10,7 @@
 - [Where do I start?](#where-do-i-start)
   - [The Logs](#the-logs)
   - [Example Use Cases & Scenarios](#example-use-cases--scenarios)
-- [Key Events](#key-events)
+- [Critical Kerberos Events](#critical-kerberos-events)
   - [KDC_ERR_PREAUTH_FAILED](#kdc_err_preauth_failed)
   - [KDC_ERR_C_PRINCIPAL_UNKNOWN](#kdc_err_c_principal_unknown)
   - [KDC_ERR_CLIENT_REVOKED](#kdc_err_client_revoked)
@@ -68,25 +68,97 @@ There are a few key fields in the `kerberos.log` you will want to pay special at
 | ---- | ---- |
 | Detected Kerberos Realms<br />Detected KDCs<br />Bad Passwords / Expired Passwords<br />Unknown Accounts<br />Locked Out / Revoked Accounts<br />Hosts with large amount of UPN success events<br />Hosts with large amounts of UPN failure events<br />Account Enumerations<br />Bruteforcing<br />* High value account mapping | Inventory all Service<br />Classes and Hosts<br />Detect legacy and outdated clients<br />Identify Operating Systems<br />Excessive successful TGS requests for large amount of SPNs<br />Excessive failed TGS requests for large amount of SPNs<br />Kerberoasting / TGS SPN Enumeration<br />Weak ciphers: rc4-hmac & rc4-hmac-emp<br />Unusual ticket expirations<br />* High value account mapping | 
 
-# Key Events
+# Critical Kerberos Events
 ## KDC_ERR_PREAUTH_FAILED
-TODO
+Related Events: `PREAUTH_FAILED`
+
+Windows Event IDs: `4771`
+
+User principal exists but an invalid password was provided
+
+Recommendations:
+
+Monitor for excessive failures and watch Zeek `client` and `service` fields
+
+* Multiple client attempts
+* Single client attempts
+* Account enumerations (e.g. pattern of KDC_ERR_C_PRINCIPAL_UNKNOWN and KDC_ERR_PREAUTH_FAILED together)
 
 ## KDC_ERR_C_PRINCIPAL_UNKNOWN
-TODO
+Related Events: `CLIENT_NOT_FOUND`
+
+Windows Event IDs: `4768`
+
+Account/client principal not found in database
+
+Recommendation:
+
+Monitor for excessive unknown events
+
+* Large unknown failures, multiple clients with subsequent KDC_ERR_PREAUTH_REQUIRED
+* Account enumerations
+* Correlate attacks with KDC_ERR_PREAUTH_FAILED
+
 
 ## KDC_ERR_CLIENT_REVOKED
-TODO
+Related Events: `LOCKED OUT`, `CLIENT_REVOKED`
+Windows Event IDs: `4768`, `4769`, `4771`
+
+Client credentials have been revoked (disabled, expired, locked out)
+
+Recommendations:
+
+Monitor for excessive or sudden revocations:
+
+* Account DoS
+* Bruteforcing
+* Misconfigured clients or service accounts
+* Runaway scripts and jobs
+* Logins taking place outside of logon hours. This error is returned by the KDC in AD environments when `LogonHours` is configured. 
 
 ## KDC_ERR_KEY_EXPIRED
-TODO
+Related Events: N/A
+
+Windows Event IDs: `4768`, `4769`
+
+Client password has expired
+
+Monitor for attempts to use expired credentials
+
+* Misconfigurations
+* Service accounts
+* Expirations with subsequent, unexpected successes
+* Vendor accounts or individuals who have left the organization
 
 ## Weak Ciphers
-TODO
+Windows Event IDs: `4769`, `4770`
+
+Various Kerberos attacks take advantage of weaknesses with tickets encrypted with weak ciphers. In particular, the "Kerberoasting" attack involves using a compromised account in the organization to extract service account credentials in the environment without sending any packets to the target service. Service account credentials can be cracked offline by requesting a Kerberos Ticket Granting Service (TGS) ticket for the SPNs registered in the environment. If these tickets are encrypted with weak ciphers and the service account password is weak, offline cracking is possible. 
+
+Important points:
+
+* Tickets can be cracked offline without anyone knowing
+* Any user authenticated to AD can query for all SPNs in the environment
+* Enumeration allows identification of all service accounts supporting and using Kerberos for authentication
+* KDC does not track whether the user actually connects to a resource after the TGS has been requested
+* AES 128 & 256 encryption became default in Windows Server 2008 and Vista, meaning any modern OS will be encrypting with AES. RC4 and DES requests should be the exception, and sometimes must remain enabled for a application service on a legacy platform not supporting AES.
+* Inter-forest Kerberos tickets also use RC4 unless configured to enforce AES. Check your forest trust configurations. 
+
+Recommendations:
+
+* Look in Zeek for TGS requests using weak ciphers: [`rc4-hmac, rc4-hmac-emp, des-cbc-crc, des-cbc-md5`]
+* Pay attention to the `service` field in the TGS request. This will provide the SPN of the application service. 
+* Ensure service account passwords are longer than 25 characters
+
+Sample Query (Humio)
+
+```
+#path=kerberos request_type=TGS success=true | cipher =~ in(values=["rc4-hmac", "rc4-hmac-emp", "des-cbc-crc", "des-cbc-md5"])
+```
 
 # Noise Makers
 ## Common Events
-These are common events in large environments that generally have little security relevance. 
+These are Kerberos error events that you may encounter, especially in large environments.
 
 | Error | Description
 | ---- | ---- |
@@ -94,8 +166,14 @@ These are common events in large environments that generally have little securit
 | KRB_AP_ERR_TKT_EXPIRED | Ignore<br />Ticket renewal is automatic and purely informational |
 | KRB_ERR_RESPONSE_TOO_BIG | Ignore<br />Protocol change from UDP to TCP (normal)<br />Common in Windows Environments |
 | KDC_ERR_BADOPTION | KDC cannot accomodate requested options<br />Unless you are troubleshooting a delegation problem, ignore this error |
-| KRC_ERR_NEVER_VALID or KRB_AP_ERR_SKEW | Kerberos is time sensitive<br />Helpful for troubleshooting<br />You may have time sync problems in your environment
-| KDC_ERR_ETYPE_NOSUPP | Encryption type requested is not supported<br />Useful for hunting down old devices requesting DES<br />AES requests but domain function level is not 2008+<br />Linux/Unix systems where single algorithm is configured in `krb5.conf`<br />Helpful for troubleshooting
+| KRC_ERR_NEVER_VALID or KRB_AP_ERR_SKEW | Kerberos is time sensitive<br />Helpful for troubleshooting<br />You may have time sync problems in your environment |
+| KDC_ERR_ETYPE_NOSUPP | Encryption type requested is not supported<br />Useful for hunting down old devices requesting DES<br />AES requests but domain function level is not 2008+<br />Linux/Unix systems where single algorithm is configured in `krb5.conf`<br />Helpful for troubleshooting |
+| KDC_ERR_S_PRINCIPAL_UNKNOWN | Missing or duplicate SPNs registered in AD<br />Incorrect server names or DNS suffixes used by the client<br />Using non-FQDN server names that need to be resolved across AD forests<br />Investigate the use of server names by the client. Often a client or server misconfiguration<br /><br />More info: [Kerberos Event Logging](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-kerberos-event-logging)<br />*"An event log 3 about a Kerberos error that has the error code 0x7 KDC_ERR_S_PRINCIPAL_UNKNOWN for Server Name cifs/\<IP address\> will be logged when a share access is made against a server IP address and no server name. If this error is logged, the Windows client automatically tries to fail back to NTLM authentication for the user account. If this operation works, receive no error."* |
+| KRB_AP_ERR_MODIFIED | Logged when an SPN is set on an incorrect account, not matching the account the server is running with<br />Could also mean password between KDC issuing the ticket and the server hosting the service is out-of-sync.<br />Check whether SPN is set correctly on KDC<br />Could be related to KDC_ERR_S_PRINCIPAL_UNKNOWN | 
+
+Additional notes about some of the above errors can be found at [https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-kerberos-event-logging](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-kerberos-event-logging)
+
+
 
 ## Y2K38 and Weird Timestamps
 If you're not familiar with the Y2K38 problem, refer to this [Wikipedia article](https://en.wikipedia.org/wiki/Year_2038_problem)
