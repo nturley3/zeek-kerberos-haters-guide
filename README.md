@@ -1,8 +1,8 @@
-# Zeek Kerberos Haters Guide
+# Kerberos-haters Guide to Zeek Threat Hunting
 **NOTE: This guide and repository is being actively updated and will reflect information presented at ZeekWeek 2021. Information is missing but will be added soon. Stay tuned.**
 
 
-- [Zeek Kerberos Haters Guide](#zeek-kerberos-haters-guide)
+- [Kerberos-haters Guide to Zeek Threat Hunting](#kerberos-haters-guide-to-zeek-threat-hunting)
 - [Introduction](#introduction)
 - [Kerberos Overview](#kerberos-overview)
   - [Authentication Service (AS)](#authentication-service-as)
