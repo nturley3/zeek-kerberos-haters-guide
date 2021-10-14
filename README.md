@@ -5,6 +5,7 @@
 - [Kerberos-haters Guide to Zeek Threat Hunting](#kerberos-haters-guide-to-zeek-threat-hunting)
 - [Introduction](#introduction)
 - [Kerberos Overview](#kerberos-overview)
+  - [Basic Steps](#basic-steps)
   - [Authentication Service (AS)](#authentication-service-as)
   - [Ticket Granting Service (TGS)](#ticket-granting-service-tgs)
   - [Authentication Header (AP)](#authentication-header-ap)
@@ -42,14 +43,28 @@ Kerberos is often misunderstood and can be complicated to implement and maintain
 # Kerberos Overview
 ![Kerberos Overview](Overview_Kerberos.png)
 
+## Basic Steps
+1. Authentication Service - Request (AS-REQ)
+2. Authentication Service - Response (AS-REP)
+3. Ticket Granting Service - Request (TGS-REQ)
+4. Ticket Granting Service - Response (TGS-REP)
+5. Application Server/Authentication Header - Request (AP-REQ)
+6. Application Server/Authentication Header - Response (AP-REP)
+
 ## Authentication Service (AS)
-This service performs the initial authentication and issues Ticket-Granting-Tickets (TGT) for users. The `AS-REQ` and `AS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `AS` in the `kerberos.log` log file. 
+ The client performs the initial authentication (client provided username and password part of `AS-REQ`) and issues Ticket-Granting-Tickets (TGT) for users in `AS-REP` (i.e. a ticket that can be used to request Ticket Granting Service(TGS) tickets). Only the `KRBTGT` service can open and read TGT data. The `AS-REQ` and `AS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `AS` in the `kerberos.log` log file. 
 
 ## Ticket Granting Service (TGS)
-This service issues service tickets that are based on the initial Ticket-Granting-Ticket (TGT). When service tickets are being requested, the user has already successfully authenticated to the KDC. The `TGS-REQ` and `TGS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `TGS` in the `kerberos.log` log file. 
+The client now wants to access a Kerberos-enabled resource (such as a file share) on a domain-joined server. The client presents its TGT to the domain controller (KDC) and requests a TGS for a target service (TGS-REQ). If successful, a TGS ticket is enrypted with the target service account password and sent back to the client (`TGS-REP`).
+
+The `TGS-REQ` and `TGS-REP` portion of the Kerberos protocol is detected and analyzed by Zeek. You can find these requests in the `request_type` field as `TGS` in the `kerberos.log` log file. It is this portion of the protocol transaction that you will see Service Principal Name (SPN) data recorded by Zeek (see below). 
 
 ## Authentication Header (AP)
-These messages contain authentication information that should be part of the first message in the authentication transaction to a application server or other Kerberos-enabled service. In Zeek, you will not see these events recorded by default since all of the interesting information in these tickets is encrypted. Events are available in Zeek to use, but additional scripting would be required to expose AP event data.  
+The client connects to the target server (e.g. file server) and presents the TGS ticket (`AP-REQ`). If the target server is able to open the ticket using its own service account password, the request is valid and approved. The `AP-REP` portion of the transaction is optional only used in domains where this is configured. 
+
+These messages contain authentication information that should be part of the first message in the authentication transaction to a application server or other Kerberos-enabled service. In Zeek, you will *not see these events recorded* by default since all of the interesting information in these tickets is encrypted. Events are available in Zeek to use, but additional scripting would be required to expose AP event data.  
+
+Another important note: Unless Privilege Attribute Certificate (PAC) validation is enabled in the domain (beyond the scope of this document), the target service will accept the TGS ticket from the client without any additional validation with the domain controller or KDC. This is a source of weakness for attacks such as Kerberoasting. **Zeek does not detect or record PAC validation events.**
 
 ## Service Principal Name (SPN)
 A Service Principal Name (SPN) is used extensively in Kerberos environments to allow clients to uniquely identify instances of services for a given target computer or application service. An SPN always includes the hostname of the target computer on which the service is being offered as well as a Service Class. 
